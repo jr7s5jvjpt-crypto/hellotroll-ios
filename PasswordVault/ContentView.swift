@@ -113,6 +113,23 @@ struct UnlockView: View {
             }
             .animation(.easeInOut(duration: 0.25), value: mode)
 
+            if vault.isBiometricEnabled {
+                Button {
+                    vault.unlockWithBiometric { ok in
+                        if !ok { errorMsg = "面容识别失败或未授权" }
+                    }
+                } label: {
+                    Label("面容解锁", systemImage: "faceid")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.green.opacity(0.15))
+                        .foregroundColor(.green)
+                        .cornerRadius(12)
+                }
+                .padding(.horizontal, 50)
+            }
+
             if let errorMsg {
                 Text(errorMsg)
                     .font(.caption)

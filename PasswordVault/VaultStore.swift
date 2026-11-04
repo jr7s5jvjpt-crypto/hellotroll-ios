@@ -2,6 +2,8 @@ import Foundation
 import SwiftUI
 import UIKit
 import CryptoKit
+import LocalAuthentication
+import Security
 
 /// 数据仓库：负责账号数据的加载、保存、加密与解锁。
 /// 数据以加密文件形式存在 App 的 Documents 目录下（vault.dat）。
@@ -26,6 +28,7 @@ final class VaultStore: ObservableObject {
         items = []
         _ = try? save()
         UserDefaults.standard.set(true, forKey: "hasMasterPassword")
+        hasMasterPassword = true
         isUnlocked = true
     }
 
@@ -54,6 +57,13 @@ final class VaultStore: ObservableObject {
     func delete(_ item: AccountItem) {
         items.removeAll { $0.id == item.id }
         _ = try? save()
+    }
+
+    /// 锁定：清空内存中的密钥与数据，回到锁屏
+    func lock() {
+        key = nil
+        items = []
+        isUnlocked = false
     }
 
     /// 修改主密码：先验证旧密码，再用新密码重新加密全部数据
@@ -105,6 +115,114 @@ final class VaultStore: ObservableObject {
     /// 关闭九宫格解锁
     func clearPattern() {
         UserDefaults.standard.removeObject(forKey: patternStoreKey)
+    }
+
+    // MARK: - 面容识别
+
+    private let biometricService = "com.pwvault.biometric"
+    private let biometricAccount = "masterPassword"
+
+    /// 是否已启用面容识别
+    var isBiometricEnabled: Bool {
+        UserDefaults.standard.bool(forKey: "biometricEnabled")
+    }
+
+    /// 启用面容识别：把主密码存入受生物识别保护的钥匙串
+    func enableBiometric(masterPassword: String) -> Bool {
+        let context = LAContext()
+        var error: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
+            return false
+        }
+        let access = SecAccessControlCreateWithFlags(
+            kCFAllocatorDefault,
+            kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+            .biometryCurrentSet,
+            nil
+        )
+        guard let access else { return false }
+        let data = Data(masterPassword.utf8)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: biometricService,
+            kSecAttrAccount as String: biometricAccount,
+            kSecValueData as String: data,
+            kSecAttrAccessControl as String: access
+        ]
+        SecItemDelete(query as CFDictionary)
+        let status = SecItemAdd(query as CFDictionary, nil)
+        guard status == errSecSuccess else { return false }
+        UserDefaults.standard.set(true, forKey: "biometricEnabled")
+        return true
+    }
+
+    /// 关闭面容识别
+    func disableBiometric() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: biometricService,
+            kSecAttrAccount as String: biometricAccount
+        ]
+        SecItemDelete(query as CFDictionary)
+        UserDefaults.standard.set(false, forKey: "biometricEnabled")
+    }
+
+    /// 用面容识别解锁：系统验证生物识别后读取钥匙串中的主密码
+    func unlockWithBiometric(completion: @escaping (Bool) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: self.biometricService,
+                kSecAttrAccount as String: self.biometricAccount,
+                kSecReturnData as String: true,
+                kSecUseOperationPrompt as String: "使用面容识别解锁密码保险箱"
+            ]
+            var item: CFTypeRef?
+            let status = SecItemCopyMatching(query as CFDictionary, &item)
+            guard status == errSecSuccess, let data = item as? Data,
+                  let password = String(data: data, encoding: .utf8) else {
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            let ok = self.unlock(with: password)
+            DispatchQueue.main.async { completion(ok) }
+        }
+    }
+
+    // MARK: - 备份与还原
+
+    /// 导出备份：把加密数据打包成 JSON（base64）
+    func exportBackupData() -> Data? {
+        guard let data = try? Data(contentsOf: fileURL) else { return nil }
+        let dict: [String: Any] = [
+            "version": 1,
+            "created": ISO8601DateFormatter().string(from: Date()),
+            "data": data.base64EncodedString()
+        ]
+        return try? JSONSerialization.data(withJSONObject: dict, options: [.prettyPrinted])
+    }
+
+    /// 生成备份文件 URL（写入临时目录，用于分享/保存）
+    func exportBackupFileURL() -> URL? {
+        guard let data = exportBackupData() else { return nil }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PasswordVaultBackup-\(Int(Date().timeIntervalSince1970)).json")
+        try? data.write(to: url)
+        return url
+    }
+
+    /// 导入备份：解析 JSON，写回加密数据文件。成功后返回 true（需要重新解锁）
+    func importBackup(data: Data) -> Bool {
+        guard let dict = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
+              let b64 = dict["data"] as? String,
+              let raw = Data(base64Encoded: b64) else { return false }
+        do {
+            try raw.write(to: fileURL, options: Data.WritingOptions.atomic)
+            lock()
+            return true
+        } catch {
+            return false
+        }
     }
 
     private func save() throws {
