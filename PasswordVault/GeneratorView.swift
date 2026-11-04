@@ -265,11 +265,7 @@ struct UpdatePasswordView: View {
                     Button("取消") { dismiss() }
                 }
             }
-            .confirmationDialog(
-                "确认更新密码？",
-                isPresented: $showConfirm,
-                presenting: selectedItem
-            ) { item in
+            .alert("确认更新密码？", isPresented: $showConfirm, presenting: selectedItem) { item in
                 Button("确认更新") {
                     onUpdate(item)
                     dismiss()
