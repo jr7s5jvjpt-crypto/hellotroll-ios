@@ -95,7 +95,7 @@ struct AccountListView: View {
                     }
                 }
             }
-            .environment(\.editMode, isEditing ? .constant(.active) : .constant(.inactive))
+            .environment(\.editMode, isEditing ? .constant(EditMode.active) : .constant(nil))
             .safeAreaInset(edge: .bottom) {
                 if isEditing && !selection.isEmpty {
                     Button {

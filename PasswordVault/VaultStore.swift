@@ -45,8 +45,8 @@ final class VaultStore: ObservableObject {
         // 校验并去除数据前缀（兼容无前缀的旧版本数据）
         var payload = dec
         let magic = Data(vaultMagic.utf8)
-        if dec.count >= magic.count, dec.prefix(magic.count) == magic {
-            payload = dec.dropFirst(magic.count)
+        if dec.count >= magic.count, Data(dec.prefix(magic.count)) == magic {
+            payload = Data(dec.dropFirst(magic.count))
         }
         items = (try? JSONDecoder().decode([AccountItem].self, from: payload)) ?? []
         isUnlocked = true
