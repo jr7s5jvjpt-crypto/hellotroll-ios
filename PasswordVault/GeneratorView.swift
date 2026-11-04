@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 密码生成器：按用途和规则生成密码（紧凑布局，一屏可见全部按钮）
+/// 密码生成器：按用途和规则生成密码
 struct GeneratorView: View {
     @EnvironmentObject var vault: VaultStore
     @State private var length: Double = 16
@@ -9,9 +9,13 @@ struct GeneratorView: View {
     @State private var digits = true
     @State private var symbols = true
     @State private var excludeAmbiguous = false
-    @State private var result = ""
     @State private var showCopied = false
-    @State private var showSaveSheet = false
+    @State private var showSaveAction = false
+    @State private var showNewAccountSheet = false
+    @State private var showUpdateAccountList = false
+
+    // 生成的密码存在 VaultStore 里，切 tab 不丢失
+    private var result: String { vault.generatedPassword }
 
     var body: some View {
         NavigationStack {
@@ -50,7 +54,7 @@ struct GeneratorView: View {
                     .frame(maxWidth: .infinity)
                     .background(cardStyle)
 
-                    // 密码强度（进度条 + 颜色变化）
+                    // 密码强度
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Text("密码强度").font(.subheadline)
@@ -106,11 +110,11 @@ struct GeneratorView: View {
                     .frame(maxWidth: .infinity)
                     .background(cardStyle)
 
-                    // 生成 / 复制 / 存入
+                    // 三个按钮
                     VStack(spacing: 10) {
                         BigActionButton(title: "生成", icon: "wand.and.stars", color: .blue) {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                result = generate()
+                                vault.generatedPassword = generate()
                             }
                             showCopied = false
                         }
@@ -119,7 +123,7 @@ struct GeneratorView: View {
                             showCopied = true
                         }
                         BigActionButton(title: "存入保险箱", icon: "square.and.arrow.down", color: .orange, disabled: result.isEmpty) {
-                            showSaveSheet = true
+                            showSaveAction = true
                         }
                     }
                 }
@@ -129,11 +133,25 @@ struct GeneratorView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("密码生成器")
             .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $showSaveSheet) {
+            .confirmationDialog("存入保险箱", isPresented: $showSaveAction, titleVisibility: .visible) {
+                Button("添加为新账号") { showNewAccountSheet = true }
+                Button("更新已有账号密码") { showUpdateAccountList = true }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("当前生成密码：\(result)")
+            }
+            .sheet(isPresented: $showNewAccountSheet) {
                 AccountEditView(
                     item: AccountItem(password: result),
                     isNew: true
                 )
+            }
+            .sheet(isPresented: $showUpdateAccountList) {
+                UpdatePasswordView { item in
+                    var updated = item
+                    updated.password = result
+                    vault.update(updated)
+                }
             }
         }
     }
@@ -214,7 +232,57 @@ struct GeneratorView: View {
     }
 }
 
-/// 带按压缩放反馈的大按钮（生成 / 复制）
+/// 选择已有账号来更新密码
+struct UpdatePasswordView: View {
+    @EnvironmentObject var vault: VaultStore
+    @Environment(\.dismiss) var dismiss
+    @State private var selectedItem: AccountItem?
+    @State private var showConfirm = false
+    let onUpdate: (AccountItem) -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(vault.items) { item in
+                    Button {
+                        selectedItem = item
+                        showConfirm = true
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.title.isEmpty ? "未命名" : item.title)
+                                Text(item.account).font(.caption).foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").foregroundColor(.tertiary)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("选择要更新的账号")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+            }
+            .confirmationDialog(
+                "确认更新密码？",
+                isPresented: $showConfirm,
+                presenting: selectedItem
+            ) { item in
+                Button("确认更新") {
+                    onUpdate(item)
+                    dismiss()
+                }
+                Button("取消", role: .cancel) {}
+            } message: { item in
+                Text("将把「\(item.title.isEmpty ? "未命名" : item.title)」的密码替换为新生成的密码。")
+            }
+        }
+    }
+}
+
+/// 带按压缩放反馈的大按钮
 struct BigActionButton: View {
     let title: String
     let icon: String

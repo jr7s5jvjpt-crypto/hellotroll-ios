@@ -261,6 +261,7 @@ struct AccountEditView: View {
     @State var item: AccountItem
     var isNew: Bool
     @State private var showWeakAlert = false
+    @State private var showPassword = false
 
     var body: some View {
         NavigationStack {
@@ -275,7 +276,20 @@ struct AccountEditView: View {
                 }
                 TextField("标题（如：微信）", text: $item.title)
                 TextField("账号 / 用户名", text: $item.account)
-                SecureField("密码", text: $item.password)
+                // 密码：带眼睛图标切换显示/隐藏
+                HStack {
+                    if showPassword {
+                        TextField("密码", text: $item.password)
+                    } else {
+                        SecureField("密码", text: $item.password)
+                    }
+                    Button {
+                        showPassword.toggle()
+                    } label: {
+                        Image(systemName: showPassword ? "eye.slash" : "eye")
+                            .foregroundColor(.secondary)
+                    }
+                }
                 TextField("备注（可选）", text: $item.note)
             }
             .navigationTitle(isNew ? "添加账号" : "编辑账号")

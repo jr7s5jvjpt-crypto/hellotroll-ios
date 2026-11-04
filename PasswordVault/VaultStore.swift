@@ -14,6 +14,8 @@ final class VaultStore: ObservableObject {
     @Published var items: [AccountItem] = []
     /// 安全相关设置变化时的刷新触发器（九宫格/面容开关等），供设置页 UI 刷新
     @Published var securityRefresh = 0
+    /// 生成器生成的密码，切 tab 不丢失（退出 App 后清空）
+    @Published var generatedPassword = ""
 
     private var key: SymmetricKey?
     private let fileURL: URL

@@ -23,8 +23,8 @@ struct RootView: View {
                     ))
             }
         }
-        .animation(.easeInOut(duration: 0.35), value: vault.hasMasterPassword)
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: vault.isUnlocked)
+        .animation(.easeInOut(duration: 0.2), value: vault.hasMasterPassword)
+        .animation(.spring(response: 0.25, dampingFraction: 0.9), value: vault.isUnlocked)
     }
 }
 
@@ -141,8 +141,8 @@ struct UnlockView: View {
                 withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
                     isUnlocking = true
                 }
-                // 快速验证并解锁，避免等待过长
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+                // 立即验证解锁，减少等待
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
                     if vault.unlock(with: password) {
                         vault.clearFails()
                         unlockSucceeded = true

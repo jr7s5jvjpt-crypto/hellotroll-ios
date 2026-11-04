@@ -50,18 +50,32 @@ struct SettingsView: View {
                             Label("开启九宫格解锁", systemImage: "circle.grid.cross.fill")
                         }
                     }
-                    Picker("自动锁定", selection: $autoLockSelection) {
-                        Text("立即锁定").tag(0.0)
-                        Text("30 秒").tag(30.0)
-                        Text("1 分钟").tag(60.0)
-                        Text("5 分钟").tag(300.0)
-                        Text("10 分钟").tag(600.0)
+                    LabeledContent {
+                        Picker("自动锁定", selection: $autoLockSelection) {
+                            Text("立即锁定").tag(0.0)
+                            Text("30 秒").tag(30.0)
+                            Text("1 分钟").tag(60.0)
+                            Text("5 分钟").tag(300.0)
+                            Text("10 分钟").tag(600.0)
+                        }
+                        .onChange(of: autoLockSelection) { newValue in
+                            vault.autoLockInterval = newValue
+                        }
+                    } label: {
+                        Label("自动锁定", systemImage: "timer")
                     }
-                    .onChange(of: autoLockSelection) { newValue in
-                        vault.autoLockInterval = newValue
+                    LabeledContent {
+                        Toggle("", isOn: $autoClearClipboard)
+                            .labelsHidden()
+                    } label: {
+                        Label("复制后自动清除剪贴板", systemImage: "doc.on.clipboard")
                     }
-                    Toggle("复制后自动清除剪贴板", isOn: $autoClearClipboard)
-                    Toggle("账号列表显示密码", isOn: $showPasswordInList)
+                    LabeledContent {
+                        Toggle("", isOn: $showPasswordInList)
+                            .labelsHidden()
+                    } label: {
+                        Label("账号列表显示密码", systemImage: "eye")
+                    }
                 } header: {
                     Text("安全")
                 } footer: {
@@ -70,18 +84,18 @@ struct SettingsView: View {
                 Section("备份与还原") {
                     if let url = vault.exportBackupFileURL() {
                         ShareLink(item: url, preview: SharePreview("密码保险箱备份")) {
-                            Label("导出加密备份", systemImage: "square.and.arrow.up")
-                        }
-                    }
-                    if let csvURL = vault.exportCSVFileURL() {
-                        ShareLink(item: csvURL, preview: SharePreview("账号数据 CSV")) {
-                            Label("导出 CSV 表格", systemImage: "tablecells")
+                            Label("导出加密备份", systemImage: "lock.doc")
                         }
                     }
                     Button {
                         showImporter = true
                     } label: {
-                        Label("导入备份", systemImage: "square.and.arrow.down")
+                        Label("导入加密备份", systemImage: "lock.doc.fill")
+                    }
+                    if let csvURL = vault.exportCSVFileURL() {
+                        ShareLink(item: csvURL, preview: SharePreview("账号数据 CSV")) {
+                            Label("导出 CSV 表格", systemImage: "tablecells")
+                        }
                     }
                 }
                 Section("关于") {
