@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 密码生成器：按用途和规则生成密码（图二布局，自定义卡片式）
+/// 密码生成器：按用途和规则生成密码（紧凑布局，一屏可见）
 struct GeneratorView: View {
     @EnvironmentObject var vault: VaultStore
     @State private var length: Double = 16
@@ -15,19 +15,15 @@ struct GeneratorView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: 10) {
                     // 生成结果卡片
-                    VStack(spacing: 14) {
-                        Text("按用途和规则生成密码。")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-
+                    VStack(spacing: 6) {
                         Text(result.isEmpty ? "点击下方生成" : result)
-                            .font(.system(size: 24, weight: .bold, design: .monospaced))
+                            .font(.system(size: 20, weight: .bold, design: .monospaced))
                             .lineLimit(1)
-                            .minimumScaleFactor(0.4)
+                            .minimumScaleFactor(0.35)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 52)   // 固定高度，密码再长也不撑高卡片
+                            .frame(height: 40)
                             .multilineTextAlignment(.center)
                             .contentShape(Rectangle())
                             .onTapGesture {
@@ -41,23 +37,23 @@ struct GeneratorView: View {
                             .id(result)
                             .transition(.scale.combined(with: .opacity))
 
-                        Text(showCopied ? "已复制到剪贴板" : "未复制到剪贴板")
-                            .font(.caption)
+                        Text(showCopied ? "已复制到剪贴板" : "点密码可复制")
+                            .font(.caption2)
                             .foregroundColor(showCopied ? .green : .secondary)
                             .animation(.easeInOut(duration: 0.2), value: showCopied)
                     }
-                    .padding()
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
                     .frame(maxWidth: .infinity)
                     .background(cardStyle)
 
-                    // 密码强度（进度条 + 颜色变化）
-                    VStack(alignment: .leading, spacing: 8) {
+                    // 密码强度（基于真实熵值）
+                    VStack(alignment: .leading, spacing: 5) {
                         HStack {
-                            Text("密码强度")
-                                .font(.subheadline)
+                            Text("密码强度").font(.subheadline)
                             Spacer()
-                            Text(strengthLabel)
-                                .font(.caption).bold()
+                            Text(strengthDetail)
+                                .font(.caption2).bold()
                                 .foregroundColor(strengthColor)
                         }
                         GeometryReader { geo in
@@ -68,44 +64,44 @@ struct GeneratorView: View {
                                     .frame(width: geo.size.width * strengthFraction)
                             }
                         }
-                        .frame(height: 8)
+                        .frame(height: 6)
                         .animation(.easeInOut(duration: 0.35), value: result)
                     }
-                    .padding()
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
                     .frame(maxWidth: .infinity)
                     .background(cardStyle)
 
-                    // 长度
-                    VStack(alignment: .leading, spacing: 10) {
+                    // 长度 + 字符规则（合并到一张卡片，省空间）
+                    VStack(spacing: 0) {
                         HStack {
                             Text("长度")
                             Spacer()
                             Text("\(Int(length))").foregroundColor(.secondary)
                         }
+                        .padding(.bottom, 4)
                         Slider(value: $length, in: 4...32, step: 1)
+                            .controlSize(.small)
+
+                        Divider().padding(.vertical, 6)
+
+                        toggleRow("大写 A-Z", $upper)
+                        Divider().padding(.vertical, 2)
+                        toggleRow("小写 a-z", $lower)
+                        Divider().padding(.vertical, 2)
+                        toggleRow("数字 0-9", $digits)
+                        Divider().padding(.vertical, 2)
+                        toggleRow("符号 !@#$", $symbols)
+                        Divider().padding(.vertical, 2)
+                        toggleRow("排除易混淆 0O1Il", $excludeAmbiguous)
                     }
-                    .padding()
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
                     .frame(maxWidth: .infinity)
                     .background(cardStyle)
 
-                    // 字符规则
-                    VStack(alignment: .leading, spacing: 12) {
-                        toggleRow("大写 A-Z", "加入大写，提升组合强度", $upper)
-                        Divider()
-                        toggleRow("小写 a-z", "加入小写，扩大可用范围", $lower)
-                        Divider()
-                        toggleRow("数字 0-9", "加入数字", $digits)
-                        Divider()
-                        toggleRow("符号", "加入！@# 等特殊符号", $symbols)
-                        Divider()
-                        toggleRow("排除混淆", "排除 0/O、1/I/l 等易混淆字符", $excludeAmbiguous)
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(cardStyle)
-
-                    // 生成 / 复制：上下两个独立按钮
-                    VStack(spacing: 12) {
+                    // 生成 / 复制
+                    VStack(spacing: 8) {
                         BigActionButton(title: "生成", icon: "wand.and.stars", color: .blue) {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 result = generate()
@@ -120,7 +116,8 @@ struct GeneratorView: View {
                         }
                     }
                 }
-                .padding()
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("密码生成器")
@@ -129,43 +126,67 @@ struct GeneratorView: View {
     }
 
     private var cardStyle: some View {
-        RoundedRectangle(cornerRadius: 16)
+        RoundedRectangle(cornerRadius: 14)
             .fill(Color(.systemBackground))
-            .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 1)
+            .shadow(color: .black.opacity(0.05), radius: 3, x: 0, y: 1)
     }
 
-    private func toggleRow(_ title: String, _ sub: String, _ binding: Binding<Bool>) -> some View {
+    private func toggleRow(_ title: String, _ binding: Binding<Bool>) -> some View {
         Toggle(isOn: binding) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                Text(sub).font(.caption).foregroundColor(.secondary)
-            }
+            Text(title).font(.subheadline)
         }
     }
 
-    private var strengthFraction: Double {
+    // MARK: - 密码强度（基于真实信息熵：bits = 长度 × log2(字符池大小)）
+
+    /// 当前字符池大小（实际可用字符数）
+    private var poolSize: Int {
+        var n = 0
+        if upper { n += 26 }
+        if lower { n += 26 }
+        if digits { n += 10 }
+        if symbols { n += 26 }
+        if excludeAmbiguous {
+            // 排除 0 O 1 I l 共5个字符（从对应的类别中减去）
+            var excl = 0
+            if digits { excl += 1 } // 0
+            if upper { excl += 2 }  // O, I
+            if lower { excl += 2 }  // l
+            n = max(n - excl, 1)
+        }
+        return max(n, 1)
+    }
+
+    /// 熵值（比特）
+    private var entropyBits: Double {
         guard !result.isEmpty else { return 0 }
-        let kinds = [upper, lower, digits, symbols].filter { $0 }.count
-        var score = Double(kinds)
-        if length >= 12 { score += 1 }
-        if length >= 16 { score += 1 }
-        if length >= 20 { score += 1 }
-        return min(score / 6.0, 1.0)
+        return Double(result.count) * log2(Double(poolSize))
+    }
+
+    private var strengthFraction: Double {
+        // 以 100 bits 为满分基准
+        min(entropyBits / 100.0, 1.0)
     }
 
     private var strengthLabel: String {
-        let f = strengthFraction
-        if f >= 0.85 { return "极强" }
-        if f >= 0.6 { return "强" }
-        if f >= 0.35 { return "中" }
-        return "弱"
+        let bits = entropyBits
+        if bits >= 80 { return "极强" }
+        if bits >= 60 { return "强" }
+        if bits >= 40 { return "中" }
+        if bits > 0 { return "弱" }
+        return "—"
+    }
+
+    private var strengthDetail: String {
+        guard entropyBits > 0 else { return "" }
+        return "\(strengthLabel) · \(Int(entropyBits)) bits"
     }
 
     private var strengthColor: Color {
-        let f = strengthFraction
-        if f >= 0.85 { return .green }
-        if f >= 0.6 { return .teal }
-        if f >= 0.35 { return .orange }
+        let bits = entropyBits
+        if bits >= 80 { return .green }
+        if bits >= 60 { return .teal }
+        if bits >= 40 { return .orange }
         return .red
     }
 
@@ -187,7 +208,7 @@ struct GeneratorView: View {
     }
 }
 
-/// 带按压缩放反馈的大按钮（生成 / 复制）
+/// 带按压缩放反馈的大按钮
 struct BigActionButton: View {
     let title: String
     let icon: String
@@ -210,14 +231,14 @@ struct BigActionButton: View {
             }
         }) {
             Label(title, systemImage: icon)
-                .font(.headline)
+                .font(.subheadline.bold())
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
-                .padding()
+                .padding(.vertical, 10)
                 .background(
-                    RoundedRectangle(cornerRadius: 14).fill(disabled ? Color.gray : color)
+                    RoundedRectangle(cornerRadius: 12).fill(disabled ? Color.gray : color)
                 )
-                .scaleEffect(pressed ? 0.96 : 1)
+                .scaleEffect(pressed ? 0.97 : 1)
                 .opacity(disabled ? 0.45 : (pressed ? 0.85 : 1))
                 .animation(.spring(response: 0.2, dampingFraction: 0.5), value: pressed)
         }

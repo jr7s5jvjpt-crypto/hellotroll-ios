@@ -11,6 +11,7 @@ struct SettingsView: View {
     @AppStorage("showPasswordInList") private var showPasswordInList = false
     @State private var showPatternInvalidAlert = false
     @State private var backupResult: BackupResult?
+    @State private var autoLockSelection: Double = 0
 
     enum BackupResult { case imported, importFailed }
 
@@ -49,15 +50,15 @@ struct SettingsView: View {
                             Label("开启九宫格解锁", systemImage: "circle.grid.cross.fill")
                         }
                     }
-                    Picker("自动锁定", selection: Binding(
-                        get: { vault.autoLockInterval },
-                        set: { vault.autoLockInterval = $0 }
-                    )) {
+                    Picker("自动锁定", selection: $autoLockSelection) {
                         Text("立即锁定").tag(0.0)
                         Text("30 秒").tag(30.0)
                         Text("1 分钟").tag(60.0)
                         Text("5 分钟").tag(300.0)
                         Text("10 分钟").tag(600.0)
+                    }
+                    .onChange(of: autoLockSelection) { _, newValue in
+                        vault.autoLockInterval = newValue
                     }
                     Toggle("复制后自动清除剪贴板", isOn: $autoClearClipboard)
                     Toggle("账号列表显示密码", isOn: $showPasswordInList)
@@ -97,6 +98,7 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("设置")
+            .onAppear { autoLockSelection = vault.autoLockInterval }
             .animation(.easeInOut(duration: 0.25), value: vault.securityRefresh)
             .sheet(isPresented: $showChangePassword) {
                 ChangePasswordView(onSaved: {
