@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import UIKit
+import CryptoKit
 
 /// 数据仓库：负责账号数据的加载、保存、加密与解锁。
 /// 数据以加密文件形式存在 App 的 Documents 目录下（vault.dat）。
@@ -71,6 +72,6 @@ final class VaultStore: ObservableObject {
         guard let key = key else { return }
         let data = try JSONEncoder().encode(items)
         let enc = try CryptoManager.encrypt(data, key: key)
-        try enc.write(to: fileURL, options: .atomic)
+        try enc.write(to: fileURL, options: Data.WritingOptions.atomic)
     }
 }
