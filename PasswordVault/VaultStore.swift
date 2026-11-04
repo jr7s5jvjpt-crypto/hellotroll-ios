@@ -132,34 +132,41 @@ final class VaultStore: ObservableObject {
         UserDefaults.standard.bool(forKey: "biometricEnabled")
     }
 
-    /// 启用面容识别：把主密码存入受生物识别保护的钥匙串
-    func enableBiometric(masterPassword: String) -> Bool {
+    /// 启用面容识别：先扫描面容验证，通过后把主密码存入普通钥匙串
+    func enableBiometric(masterPassword: String, completion: @escaping (Bool) -> Void) {
         let context = LAContext()
         var error: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
-            return false
+            completion(false)
+            return
         }
-        let access = SecAccessControlCreateWithFlags(
-            kCFAllocatorDefault,
-            kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-            .biometryCurrentSet,
-            nil
-        )
-        guard let access else { return false }
-        let data = Data(masterPassword.utf8)
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: biometricService,
-            kSecAttrAccount as String: biometricAccount,
-            kSecValueData as String: data,
-            kSecAttrAccessControl as String: access
-        ]
-        SecItemDelete(query as CFDictionary)
-        let status = SecItemAdd(query as CFDictionary, nil)
-        guard status == errSecSuccess else { return false }
-        UserDefaults.standard.set(true, forKey: "biometricEnabled")
-        securityRefresh += 1
-        return true
+        // 先扫描面容验证（开启时也扫一次，与常规软件一致）
+        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,
+                               localizedReason: "开启面容识别前请先验证") { success, _ in
+            guard success else {
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            // 面容通过后，主密码存入普通钥匙串（不设生物识别 access control，避免读取时崩溃）
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: self.biometricService,
+                kSecAttrAccount as String: self.biometricAccount,
+                kSecValueData as String: Data(masterPassword.utf8),
+                kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            ]
+            SecItemDelete(query as CFDictionary)
+            let status = SecItemAdd(query as CFDictionary, nil)
+            guard status == errSecSuccess else {
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            UserDefaults.standard.set(true, forKey: "biometricEnabled")
+            DispatchQueue.main.async {
+                self.securityRefresh += 1
+                completion(true)
+            }
+        }
     }
 
     /// 关闭面容识别
@@ -182,19 +189,19 @@ final class VaultStore: ObservableObject {
             completion(false)
             return
         }
+        // 先扫描面容验证
         context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,
-                               localizedReason: "使用面容识别快速解锁密码保险箱") { success, _ in
+                               localizedReason: "使用面容识别快速解锁") { success, _ in
             guard success else {
                 DispatchQueue.main.async { completion(false) }
                 return
             }
-            // 生物识别已通过，用同一 context 读取钥匙串（不会再弹窗）
+            // 面容通过后读取普通钥匙串（不再触发生物识别 access control，避免崩溃）
             let query: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrService as String: self.biometricService,
                 kSecAttrAccount as String: self.biometricAccount,
-                kSecReturnData as String: true,
-                kSecUseAuthenticationContext as String: context
+                kSecReturnData as String: true
             ]
             var item: CFTypeRef?
             let status = SecItemCopyMatching(query as CFDictionary, &item)

@@ -165,10 +165,13 @@ struct BiometricSetupView: View {
                             errorMsg = "主密码错误"
                             return
                         }
-                        if vault.enableBiometric(masterPassword: password) {
-                            dismiss()
-                        } else {
-                            errorMsg = "开启失败：设备不支持面容识别"
+                        // 会先弹出面容扫描验证，通过后再启用
+                        vault.enableBiometric(masterPassword: password) { ok in
+                            if ok {
+                                dismiss()
+                            } else {
+                                errorMsg = "开启失败：面容验证未通过或设备不支持"
+                            }
                         }
                     }
                     .disabled(password.isEmpty)

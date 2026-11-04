@@ -39,12 +39,10 @@ struct GeneratorView: View {
                             .id(result)
                             .transition(.scale.combined(with: .opacity))
 
-                        if showCopied {
-                            Text("已复制到剪贴板")
-                                .font(.caption)
-                                .foregroundColor(.green)
-                                .transition(.opacity)
-                        }
+                        Text(showCopied ? "已复制到剪贴板" : "未复制到剪贴板")
+                            .font(.caption)
+                            .foregroundColor(showCopied ? .green : .secondary)
+                            .animation(.easeInOut(duration: 0.2), value: showCopied)
                     }
                     .padding()
                     .frame(maxWidth: .infinity)

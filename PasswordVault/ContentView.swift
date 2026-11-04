@@ -194,13 +194,16 @@ struct MainTabView: View {
     @State private var selectedTab = 0
 
     var body: some View {
-        Group {
-            switch selectedTab {
-            case 0: AccountListView()
-            case 1: GeneratorView()
-            default: SettingsView()
+        ZStack {
+            if selectedTab == 0 {
+                AccountListView().transition(.opacity)
+            } else if selectedTab == 1 {
+                GeneratorView().transition(.opacity)
+            } else {
+                SettingsView().transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.25), value: selectedTab)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             tabBar
         }
@@ -212,11 +215,12 @@ struct MainTabView: View {
             tabButton(1, "生成", "dice.fill")
             tabButton(2, "设置", "gearshape.fill")
         }
-        .padding(.vertical, 6)
-        .background(
-            Color(.systemBackground)
-                .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: -1)
-        )
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .background(Color(.systemBackground))
+        .overlay(alignment: .top) {
+            Divider()
+        }
     }
 
     private func tabButton(_ index: Int, _ title: String, _ icon: String) -> some View {

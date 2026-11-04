@@ -72,6 +72,7 @@ struct AccountDetailView: View {
     @State var item: AccountItem
     @State private var showEdit = false
     @State private var revealPassword = false
+    @State private var copiedField: String?
 
     var body: some View {
         Form {
@@ -85,11 +86,7 @@ struct AccountDetailView: View {
                 HStack {
                     Text(item.account)
                     Spacer()
-                    Button {
-                        vault.copyText(item.account)
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                    }
+                    copyButton(field: "账号", value: item.account)
                 }
             }
             Section("密码") {
@@ -97,11 +94,8 @@ struct AccountDetailView: View {
                     Text(revealPassword ? item.password : String(repeating: "•", count: item.password.count))
                         .animation(.easeInOut(duration: 0.2), value: revealPassword)
                     Spacer()
-                    Button {
-                        vault.copyText(item.password)
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                    }
+                    copyButton(field: "密码", value: item.password)
+                        .padding(.trailing, 22)   // 与“显示密码”按钮拉开距离，避免误触
                     Button {
                         revealPassword.toggle()
                     } label: {
@@ -126,8 +120,43 @@ struct AccountDetailView: View {
                 Button("编辑") { showEdit = true }
             }
         }
-        .sheet(isPresented: $showEdit) {
+        .sheet(isPresented: $showEdit, onDismiss: refreshItem) {
             AccountEditView(item: item, isNew: false)
+        }
+    }
+
+    /// 复制按钮：点击后图标短暂变绿打勾并显示“已复制”，1.5 秒后恢复
+    private func copyButton(field: String, value: String) -> some View {
+        Button {
+            vault.copyText(value)
+            withAnimation(.easeInOut(duration: 0.2)) {
+                copiedField = field
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                if copiedField == field {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        copiedField = nil
+                    }
+                }
+            }
+        } label: {
+            VStack(spacing: 2) {
+                Image(systemName: copiedField == field ? "checkmark" : "doc.on.doc")
+                    .foregroundColor(copiedField == field ? .green : .blue)
+                if copiedField == field {
+                    Text("已复制")
+                        .font(.caption2)
+                        .foregroundColor(.green)
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: copiedField)
+        }
+    }
+
+    /// 编辑保存后从数据源刷新当前条目，详情页立即显示最新内容
+    private func refreshItem() {
+        if let updated = vault.items.first(where: { $0.id == item.id }) {
+            item = updated
         }
     }
 }
