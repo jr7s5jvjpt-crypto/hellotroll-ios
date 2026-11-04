@@ -50,8 +50,10 @@ struct SettingsView: View {
                             Label("开启九宫格解锁", systemImage: "circle.grid.cross.fill")
                         }
                     }
-                    LabeledContent {
-                        Picker("自动锁定", selection: $autoLockSelection) {
+                    HStack {
+                        Label("自动锁定", systemImage: "timer")
+                        Spacer()
+                        Picker("", selection: $autoLockSelection) {
                             Text("立即锁定").tag(0.0)
                             Text("30 秒").tag(30.0)
                             Text("1 分钟").tag(60.0)
@@ -61,20 +63,18 @@ struct SettingsView: View {
                         .onChange(of: autoLockSelection) { newValue in
                             vault.autoLockInterval = newValue
                         }
-                    } label: {
-                        Label("自动锁定", systemImage: "timer")
                     }
-                    LabeledContent {
+                    HStack {
+                        Label("复制后自动清除剪贴板", systemImage: "doc.on.clipboard")
+                        Spacer()
                         Toggle("", isOn: $autoClearClipboard)
                             .labelsHidden()
-                    } label: {
-                        Label("复制后自动清除剪贴板", systemImage: "doc.on.clipboard")
                     }
-                    LabeledContent {
+                    HStack {
+                        Label("账号列表显示密码", systemImage: "eye")
+                        Spacer()
                         Toggle("", isOn: $showPasswordInList)
                             .labelsHidden()
-                    } label: {
-                        Label("账号列表显示密码", systemImage: "eye")
                     }
                 } header: {
                     Text("安全")
