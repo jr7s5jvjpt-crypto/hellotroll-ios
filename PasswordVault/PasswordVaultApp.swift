@@ -1,31 +1,27 @@
 import SwiftUI
+import UIKit
 
 @main
 struct PasswordVaultApp: App {
     @StateObject private var vault = VaultStore()
-    @Environment(\.scenePhase) private var scenePhase
     @State private var backgroundTime: Date?
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(vault)
-                .onChange(of: scenePhase) { newPhase in
-                    switch newPhase {
-                    case .background:
-                        // 记录进入后台的时间，回到前台时判断是否超时
-                        backgroundTime = Date()
-                    case .active:
-                        if let bg = backgroundTime {
-                            let interval = vault.autoLockInterval
-                            if interval <= 0 || Date().timeIntervalSince(bg) >= interval {
-                                vault.lock()
-                            }
+                // 记录进入后台的时间，回到前台时判断是否超时自动锁定
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+                    backgroundTime = Date()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                    if let bg = backgroundTime {
+                        let interval = vault.autoLockInterval
+                        if interval <= 0 || Date().timeIntervalSince(bg) >= interval {
+                            vault.lock()
                         }
-                        backgroundTime = nil
-                    default:
-                        break
                     }
+                    backgroundTime = nil
                 }
         }
     }

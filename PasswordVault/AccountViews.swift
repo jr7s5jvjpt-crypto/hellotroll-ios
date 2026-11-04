@@ -47,7 +47,7 @@ struct AccountListView: View {
                                         if vault.showPasswordInList && !item.password.isEmpty {
                                             Text(String(repeating: "•", count: item.password.count))
                                                 .font(.caption)
-                                                .foregroundColor(.tertiary)
+                                                .foregroundStyle(.tertiary)
                                         }
                                     }
                                 }
@@ -95,7 +95,7 @@ struct AccountListView: View {
                     }
                 }
             }
-            .environment(\.editMode, isEditing ? .constant(EditMode.active) : .constant(nil))
+            .environment(\.editMode, isEditing ? .constant(EditMode.active) : nil)
             .safeAreaInset(edge: .bottom) {
                 if isEditing && !selection.isEmpty {
                     Button {

@@ -5,7 +5,7 @@ import UIKit
 struct PatternLockView: View {
     var minPoints: Int = 4
     var onComplete: ([Int]) -> Void
-    var onError: (() -> Void)?
+    var onError: (() -> Void)? = nil
 
     @State private var selected: [Int] = []
     @State private var finger: CGPoint?
