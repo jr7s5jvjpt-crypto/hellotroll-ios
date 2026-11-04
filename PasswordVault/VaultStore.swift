@@ -17,7 +17,7 @@ final class VaultStore: ObservableObject {
     init() {
         let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         fileURL = dir.appendingPathComponent("vault.dat")
-        hasMasterPassword = FileManager.default.fileExists(atPath: fileURL.path)
+        hasMasterPassword = UserDefaults.standard.bool(forKey: "hasMasterPassword")
     }
 
     /// 首次启动设置主密码（同时初始化空数据文件）
@@ -25,6 +25,7 @@ final class VaultStore: ObservableObject {
         key = CryptoManager.deriveKey(from: password)
         items = []
         _ = try? save()
+        UserDefaults.standard.set(true, forKey: "hasMasterPassword")
         isUnlocked = true
     }
 
@@ -66,6 +67,44 @@ final class VaultStore: ObservableObject {
     /// 复制文本到剪贴板
     func copyText(_ text: String) {
         UIPasteboard.general.string = text
+    }
+
+    // MARK: - 九宫格解锁
+
+    private let patternStoreKey = "patternVault"
+
+    /// 是否已设置九宫格解锁
+    var hasPattern: Bool {
+        UserDefaults.standard.string(forKey: patternStoreKey) != nil
+    }
+
+    /// 设置九宫格：用图案派生密钥加密保护主密码（仅在主密码已验证正确时调用）
+    func setPattern(_ pattern: [Int], masterPassword: String) {
+        let key = CryptoManager.derivePatternKey(from: pattern)
+        guard let enc = try? CryptoManager.encrypt(Data(masterPassword.utf8), key: key) else { return }
+        UserDefaults.standard.set(enc.base64EncodedString(), forKey: patternStoreKey)
+    }
+
+    /// 用九宫格图案解锁：画对图案 → 解出主密码 → 走正常解锁流程
+    func unlockWithPattern(_ pattern: [Int]) -> Bool {
+        guard let b64 = UserDefaults.standard.string(forKey: patternStoreKey),
+              let enc = Data(base64Encoded: b64) else { return false }
+        let key = CryptoManager.derivePatternKey(from: pattern)
+        guard let dec = try? CryptoManager.decrypt(enc, key: key),
+              let password = String(data: dec, encoding: .utf8) else { return false }
+        return unlock(with: password)
+    }
+
+    /// 验证主密码是否正确（不改变解锁状态），用于设置九宫格时校验身份
+    func verifyMasterPassword(_ password: String) -> Bool {
+        guard let data = try? Data(contentsOf: fileURL) else { return false }
+        let key = CryptoManager.deriveKey(from: password)
+        return (try? CryptoManager.decrypt(data, key: key)) != nil
+    }
+
+    /// 关闭九宫格解锁
+    func clearPattern() {
+        UserDefaults.standard.removeObject(forKey: patternStoreKey)
     }
 
     private func save() throws {

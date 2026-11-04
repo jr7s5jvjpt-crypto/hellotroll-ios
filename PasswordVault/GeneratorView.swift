@@ -20,15 +20,21 @@ struct GeneratorView: View {
                         .frame(maxWidth: .infinity)
                         .multilineTextAlignment(.center)
                         .padding(.vertical, 8)
+                        .id(result)
+                        .transition(.scale.combined(with: .opacity))
                     Button("生成密码") {
-                        result = generate()
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            result = generate()
+                        }
                         showCopied = false
                     }
                     .frame(maxWidth: .infinity)
                     if !result.isEmpty {
                         Button("复制") {
-                            vault.copyText(result)
-                            showCopied = true
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                vault.copyText(result)
+                                showCopied = true
+                            }
                         }
                         .frame(maxWidth: .infinity)
                     }
@@ -36,6 +42,7 @@ struct GeneratorView: View {
                         Text("已复制到剪贴板")
                             .font(.caption)
                             .foregroundColor(.green)
+                            .transition(.opacity)
                     }
                 }
                 Section("长度：\(Int(length))") {

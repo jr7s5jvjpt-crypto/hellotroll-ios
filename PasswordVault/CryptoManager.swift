@@ -19,6 +19,20 @@ enum CryptoManager {
         )
     }
 
+    /// 从九宫格图案（点序号数组）派生密钥，用于加密保护主密码。
+    /// 使用独立 salt，避免与主密码派生结果混淆。
+    static func derivePatternKey(from pattern: [Int]) -> SymmetricKey {
+        let str = pattern.map(String.init).joined(separator: ",")
+        let salt = Data("PasswordVault::pattern::v1".utf8)
+        let info = Data("PasswordVault::patternKey::v1".utf8)
+        return HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: SymmetricKey(data: Data(str.utf8)),
+            salt: salt,
+            info: info,
+            outputByteCount: 32
+        )
+    }
+
     /// 加密明文，返回 nonce + 密文 + tag 的组合数据
     static func encrypt(_ plain: Data, key: SymmetricKey) throws -> Data {
         let sealed = try AES.GCM.seal(plain, using: key)

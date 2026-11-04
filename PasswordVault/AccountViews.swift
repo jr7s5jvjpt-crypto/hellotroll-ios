@@ -46,6 +46,7 @@ struct AccountListView: View {
             }
             .searchable(text: $searchText)
             .navigationTitle("账号")
+            .animation(.easeInOut(duration: 0.25), value: vault.items)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
@@ -91,6 +92,7 @@ struct AccountDetailView: View {
             Section("密码") {
                 HStack {
                     Text(revealPassword ? item.password : String(repeating: "•", count: item.password.count))
+                        .animation(.easeInOut(duration: 0.2), value: revealPassword)
                     Spacer()
                     Button {
                         vault.copyText(item.password)
