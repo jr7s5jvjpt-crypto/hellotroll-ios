@@ -12,6 +12,8 @@ final class VaultStore: ObservableObject {
     @Published var isUnlocked = false
     @Published var hasMasterPassword = false
     @Published var items: [AccountItem] = []
+    /// 安全相关设置变化时的刷新触发器（九宫格/面容开关等），供设置页 UI 刷新
+    @Published var securityRefresh = 0
 
     private var key: SymmetricKey?
     private let fileURL: URL
@@ -71,6 +73,7 @@ final class VaultStore: ObservableObject {
         guard unlock(with: old) else { return false }
         key = CryptoManager.deriveKey(from: new)
         _ = try? save()
+        securityRefresh += 1
         return true
     }
 
@@ -93,6 +96,7 @@ final class VaultStore: ObservableObject {
         let key = CryptoManager.derivePatternKey(from: pattern)
         guard let enc = try? CryptoManager.encrypt(Data(masterPassword.utf8), key: key) else { return }
         UserDefaults.standard.set(enc.base64EncodedString(), forKey: patternStoreKey)
+        securityRefresh += 1
     }
 
     /// 用九宫格图案解锁：画对图案 → 解出主密码 → 走正常解锁流程
@@ -105,7 +109,7 @@ final class VaultStore: ObservableObject {
         return unlock(with: password)
     }
 
-    /// 验证主密码是否正确（不改变解锁状态），用于设置九宫格时校验身份
+    /// 验证主密码是否正确（不改变解锁状态），用于设置九宫格/面容时校验身份
     func verifyMasterPassword(_ password: String) -> Bool {
         guard let data = try? Data(contentsOf: fileURL) else { return false }
         let key = CryptoManager.deriveKey(from: password)
@@ -115,6 +119,7 @@ final class VaultStore: ObservableObject {
     /// 关闭九宫格解锁
     func clearPattern() {
         UserDefaults.standard.removeObject(forKey: patternStoreKey)
+        securityRefresh += 1
     }
 
     // MARK: - 面容识别
@@ -153,6 +158,7 @@ final class VaultStore: ObservableObject {
         let status = SecItemAdd(query as CFDictionary, nil)
         guard status == errSecSuccess else { return false }
         UserDefaults.standard.set(true, forKey: "biometricEnabled")
+        securityRefresh += 1
         return true
     }
 
@@ -165,17 +171,30 @@ final class VaultStore: ObservableObject {
         ]
         SecItemDelete(query as CFDictionary)
         UserDefaults.standard.set(false, forKey: "biometricEnabled")
+        securityRefresh += 1
     }
 
-    /// 用面容识别解锁：系统验证生物识别后读取钥匙串中的主密码
+    /// 用面容识别解锁：先由系统在界面触发面容验证，通过后再读取钥匙串中的主密码
     func unlockWithBiometric(completion: @escaping (Bool) -> Void) {
-        DispatchQueue.global(qos: .userInitiated).async {
+        let context = LAContext()
+        var error: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
+            completion(false)
+            return
+        }
+        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,
+                               localizedReason: "使用面容识别快速解锁密码保险箱") { success, _ in
+            guard success else {
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            // 生物识别已通过，用同一 context 读取钥匙串（不会再弹窗）
             let query: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrService as String: self.biometricService,
                 kSecAttrAccount as String: self.biometricAccount,
                 kSecReturnData as String: true,
-                kSecUseOperationPrompt as String: "使用面容识别解锁密码保险箱"
+                kSecUseAuthenticationContext as String: context
             ]
             var item: CFTypeRef?
             let status = SecItemCopyMatching(query as CFDictionary, &item)

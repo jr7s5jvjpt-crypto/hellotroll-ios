@@ -189,16 +189,56 @@ struct UnlockView: View {
     }
 }
 
-/// 解锁后的主界面：三个 Tab
+/// 解锁后的主界面：三个 Tab（自定义底部导航，小图标 + 点击反馈）
 struct MainTabView: View {
+    @State private var selectedTab = 0
+
     var body: some View {
-        TabView {
-            AccountListView()
-                .tabItem { Label("账号", systemImage: "key.fill") }
-            GeneratorView()
-                .tabItem { Label("生成", systemImage: "dice.fill") }
-            SettingsView()
-                .tabItem { Label("设置", systemImage: "gearshape.fill") }
+        Group {
+            switch selectedTab {
+            case 0: AccountListView()
+            case 1: GeneratorView()
+            default: SettingsView()
+            }
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            tabBar
+        }
+    }
+
+    private var tabBar: some View {
+        HStack(spacing: 0) {
+            tabButton(0, "账号", "key.fill")
+            tabButton(1, "生成", "dice.fill")
+            tabButton(2, "设置", "gearshape.fill")
+        }
+        .padding(.vertical, 6)
+        .background(
+            Color(.systemBackground)
+                .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: -1)
+        )
+    }
+
+    private func tabButton(_ index: Int, _ title: String, _ icon: String) -> some View {
+        let selected = selectedTab == index
+        return Button {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
+                selectedTab = index
+            }
+        } label: {
+            VStack(spacing: 3) {
+                Image(systemName: icon)
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundColor(selected ? .blue : .secondary)
+                    .scaleEffect(selected ? 1.05 : 0.9)
+                Text(title)
+                    .font(.caption2)
+                    .foregroundColor(selected ? .blue : .secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }

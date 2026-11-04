@@ -6,17 +6,20 @@ struct AccountListView: View {
     @State private var showAdd = false
     @State private var searchText = ""
 
-    private var groups: [(AccountType, [AccountItem])] {
+    private var groups: [(String, [AccountItem])] {
         let filtered = searchText.isEmpty
             ? vault.items
             : vault.items.filter {
                 $0.title.localizedCaseInsensitiveContains(searchText) ||
                 $0.account.localizedCaseInsensitiveContains(searchText)
             }
-        return AccountType.allCases.compactMap { type in
-            let arr = filtered.filter { $0.type == type }
-            return arr.isEmpty ? nil : (type, arr)
+        var dict: [String: [AccountItem]] = [:]
+        for item in filtered {
+            let name = typeDisplayName(for: item)
+            dict[name, default: []].append(item)
         }
+        return dict.map { ($0.key, $0.value) }
+            .sorted { $0.0.localizedStandardCompare($1.0) == .orderedAscending }
     }
 
     var body: some View {
@@ -28,8 +31,8 @@ struct AccountListView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 30)
                 } else {
-                    ForEach(groups, id: \.0) { type, items in
-                        Section(header: Text(type.rawValue)) {
+                    ForEach(groups, id: \.0) { name, items in
+                        Section(header: Text(name)) {
                             ForEach(items) { item in
                                 NavigationLink(destination: AccountDetailView(item: item)) {
                                     VStack(alignment: .leading, spacing: 2) {
@@ -73,7 +76,7 @@ struct AccountDetailView: View {
     var body: some View {
         Form {
             Section("类型") {
-                Text(item.type.rawValue)
+                Text(typeDisplayName(for: item))
             }
             Section("标题") {
                 Text(item.title.isEmpty ? "未命名" : item.title)
@@ -143,6 +146,9 @@ struct AccountEditView: View {
                     ForEach(AccountType.allCases) { t in
                         Text(t.rawValue).tag(t)
                     }
+                }
+                if item.type == .custom {
+                    TextField("自定义类型名称", text: $item.customType)
                 }
                 TextField("标题（如：微信）", text: $item.title)
                 TextField("账号 / 用户名", text: $item.account)

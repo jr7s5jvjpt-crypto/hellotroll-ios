@@ -17,21 +17,41 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section("安全") {
-                    Button("修改主密码") { showChangePassword = true }
+                    Button {
+                        showChangePassword = true
+                    } label: {
+                        Label("修改主密码", systemImage: "key")
+                    }
                     if vault.hasPattern {
-                        Button("修改九宫格解锁") { showPatternSetup = true }
-                        Button("关闭九宫格解锁", role: .destructive) {
+                        Button {
+                            showPatternSetup = true
+                        } label: {
+                            Label("修改九宫格解锁", systemImage: "circle.grid.cross.fill")
+                        }
+                        Button(role: .destructive) {
                             vault.clearPattern()
+                        } label: {
+                            Label("关闭九宫格解锁", systemImage: "circle.grid.cross")
                         }
                     } else {
-                        Button("开启九宫格解锁") { showPatternSetup = true }
+                        Button {
+                            showPatternSetup = true
+                        } label: {
+                            Label("开启九宫格解锁", systemImage: "circle.grid.cross.fill")
+                        }
                     }
                     if vault.isBiometricEnabled {
-                        Button("关闭面容识别", role: .destructive) {
+                        Button(role: .destructive) {
                             vault.disableBiometric()
+                        } label: {
+                            Label("关闭面容识别", systemImage: "faceid")
                         }
                     } else {
-                        Button("开启面容识别") { showBiometricSetup = true }
+                        Button {
+                            showBiometricSetup = true
+                        } label: {
+                            Label("开启面容识别", systemImage: "faceid")
+                        }
                     }
                 }
                 Section("备份与还原") {
@@ -40,23 +60,27 @@ struct SettingsView: View {
                             Label("导出备份", systemImage: "square.and.arrow.up")
                         }
                     }
-                    Button("导入备份") { showImporter = true }
+                    Button {
+                        showImporter = true
+                    } label: {
+                        Label("导入备份", systemImage: "square.and.arrow.down")
+                    }
                 }
                 Section("关于") {
                     HStack {
-                        Text("版本")
+                        Label("版本", systemImage: "info.circle")
                         Spacer()
                         Text("1.2").foregroundColor(.secondary)
                     }
                     HStack {
-                        Text("数据存储")
+                        Label("数据存储", systemImage: "lock.shield")
                         Spacer()
                         Text("本地加密").foregroundColor(.secondary)
                     }
                 }
             }
             .navigationTitle("设置")
-            .animation(.easeInOut(duration: 0.25), value: vault.hasPattern)
+            .animation(.easeInOut(duration: 0.25), value: vault.securityRefresh)
             .sheet(isPresented: $showChangePassword) {
                 ChangePasswordView(onSaved: {
                     if vault.hasPattern {
