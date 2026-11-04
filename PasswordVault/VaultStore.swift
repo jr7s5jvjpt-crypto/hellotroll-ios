@@ -17,6 +17,8 @@ final class VaultStore: ObservableObject {
 
     private var key: SymmetricKey?
     private let fileURL: URL
+    /// 数据文件魔数前缀，用于校验数据完整性（新格式带前缀，兼容旧格式）
+    private let vaultMagic = "PV1"
 
     init() {
         let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
@@ -40,7 +42,13 @@ final class VaultStore: ObservableObject {
         let candidateKey = CryptoManager.deriveKey(from: password)
         guard let dec = try? CryptoManager.decrypt(data, key: candidateKey) else { return false }
         key = candidateKey
-        items = (try? JSONDecoder().decode([AccountItem].self, from: dec)) ?? []
+        // 校验并去除数据前缀（兼容无前缀的旧版本数据）
+        var payload = dec
+        let magic = Data(vaultMagic.utf8)
+        if dec.count >= magic.count, dec.prefix(magic.count) == magic {
+            payload = dec.dropFirst(magic.count)
+        }
+        items = (try? JSONDecoder().decode([AccountItem].self, from: payload)) ?? []
         isUnlocked = true
         return true
     }
@@ -68,6 +76,52 @@ final class VaultStore: ObservableObject {
         isUnlocked = false
     }
 
+    /// 自动锁定时间（秒）。0 表示切后台立即锁定；非 0 表示后台停留超过该时间才锁定。
+    /// 无论设置多少，完全退出软件（进程被杀）后重新打开始终需要输入密码。
+    var autoLockInterval: Double {
+        get { UserDefaults.standard.double(forKey: "autoLockInterval") }
+        set { UserDefaults.standard.set(newValue, forKey: "autoLockInterval") }
+    }
+
+    /// 账号列表是否直接显示密码（默认隐藏）
+    var showPasswordInList: Bool {
+        get { UserDefaults.standard.bool(forKey: "showPasswordInList") }
+        set { UserDefaults.standard.set(newValue, forKey: "showPasswordInList") }
+    }
+
+    /// 上次备份时间
+    var lastBackupDate: Date? {
+        UserDefaults.standard.object(forKey: "lastBackupDate") as? Date
+    }
+
+    /// 连续输错达到上限后，临时锁定（防暴力破解）
+    private var failCount = 0
+    private var lockUntil: Date?
+
+    /// 当前是否处于输错锁定状态
+    var isLockedOut: Bool {
+        guard let until = lockUntil else { return false }
+        if until > Date() { return true }
+        lockUntil = nil
+        failCount = 0
+        return false
+    }
+
+    /// 记录一次输错；连续 5 次错误锁定 30 秒
+    func registerFail() {
+        failCount += 1
+        if failCount >= 5 {
+            lockUntil = Date().addingTimeInterval(30)
+            failCount = 0
+        }
+    }
+
+    /// 解锁成功时清除失败计数
+    func clearFails() {
+        failCount = 0
+        lockUntil = nil
+    }
+
     /// 修改主密码：先验证旧密码，再用新密码重新加密全部数据
     func changeMasterPassword(from old: String, to new: String) -> Bool {
         guard unlock(with: old) else { return false }
@@ -77,9 +131,32 @@ final class VaultStore: ObservableObject {
         return true
     }
 
-    /// 复制文本到剪贴板
+    /// 复制文本到剪贴板；默认 30 秒后自动清空（避免密码残留）
     func copyText(_ text: String) {
-        UIPasteboard.general.string = text
+        let pb = UIPasteboard.general
+        pb.string = text
+        let enabled = UserDefaults.standard.object(forKey: "autoClearClipboard") as? Bool ?? true
+        guard enabled else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) {
+            if pb.string == text { pb.string = "" }
+        }
+    }
+
+    /// 常见弱密码库（本地比对，不联网）
+    private let commonWeakPasswords: Set<String> = [
+        "123456", "password", "123456789", "12345678", "12345", "qwerty", "abc123",
+        "111111", "123123", "admin", "letmein", "welcome", "000000", "password1",
+        "iloveyou", "1234567", "1234567890", "1234", "football", "monkey"
+    ]
+
+    /// 判断密码是否过弱（过短、过于简单、或常见弱密码）
+    func isWeakPassword(_ p: String) -> Bool {
+        if p.isEmpty { return false }
+        if commonWeakPasswords.contains(p.lowercased()) { return true }
+        if p.count < 8 { return true }
+        let hasLetter = p.rangeOfCharacter(from: .letters) != nil
+        let hasDigit = p.rangeOfCharacter(from: .decimalDigits) != nil
+        return !(hasLetter && hasDigit)
     }
 
     // MARK: - 九宫格解锁
@@ -231,6 +308,7 @@ final class VaultStore: ObservableObject {
     /// 生成备份文件 URL（写入临时目录，用于分享/保存）
     func exportBackupFileURL() -> URL? {
         guard let data = exportBackupData() else { return nil }
+        UserDefaults.standard.set(Date(), forKey: "lastBackupDate")
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("PasswordVaultBackup-\(Int(Date().timeIntervalSince1970)).json")
         try? data.write(to: url)
@@ -254,7 +332,9 @@ final class VaultStore: ObservableObject {
     private func save() throws {
         guard let key = key else { return }
         let data = try JSONEncoder().encode(items)
-        let enc = try CryptoManager.encrypt(data, key: key)
+        // 加魔数前缀，用于读取时校验完整性
+        let payload = Data(vaultMagic.utf8) + data
+        let enc = try CryptoManager.encrypt(payload, key: key)
         try enc.write(to: fileURL, options: Data.WritingOptions.atomic)
     }
 }

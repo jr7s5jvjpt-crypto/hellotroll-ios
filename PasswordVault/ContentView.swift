@@ -24,7 +24,7 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.35), value: vault.hasMasterPassword)
-        .animation(.spring(response: 0.45, dampingFraction: 0.82), value: vault.isUnlocked)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: vault.isUnlocked)
     }
 }
 
@@ -118,23 +118,6 @@ struct UnlockView: View {
             }
             .animation(.easeInOut(duration: 0.25), value: mode)
 
-            if vault.isBiometricEnabled {
-                Button {
-                    vault.unlockWithBiometric { ok in
-                        if !ok { errorMsg = "面容识别失败或未授权" }
-                    }
-                } label: {
-                    Label("面容解锁", systemImage: "faceid")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.green.opacity(0.15))
-                        .foregroundColor(.green)
-                        .cornerRadius(12)
-                }
-                .padding(.horizontal, 50)
-            }
-
             if let errorMsg {
                 Text(errorMsg)
                     .font(.caption)
@@ -155,26 +138,20 @@ struct UnlockView: View {
                 .animation(.easeInOut(duration: 0.08).repeatCount(shake ? 3 : 0), value: shake)
             Button {
                 guard !isUnlocking else { return }
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
                     isUnlocking = true
                 }
-                // 给按压动画一点时间，再验证密码
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    if vault.verifyMasterPassword(password) {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                            unlockSucceeded = true
-                        }
-                        // 打勾反馈后，真正解锁进入主界面
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                            _ = vault.unlock(with: password)
-                        }
+                // 快速验证并解锁，避免等待过长
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+                    if vault.unlock(with: password) {
+                        vault.clearFails()
+                        unlockSucceeded = true
                     } else {
+                        vault.registerFail()
+                        isUnlocking = false
                         errorMsg = "主密码错误"
                         shake = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                            isUnlocking = false
-                            shake = false
-                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { shake = false }
                     }
                 }
             } label: {
@@ -194,9 +171,16 @@ struct UnlockView: View {
                 .cornerRadius(12)
                 .scaleEffect(isUnlocking ? 0.94 : 1.0)
             }
-            .disabled(password.isEmpty || isUnlocking)
+            .disabled(password.isEmpty || isUnlocking || vault.isLockedOut)
             .padding(.horizontal, 50)
             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isUnlocking)
+
+            if vault.isLockedOut {
+                Text("输错次数过多，请稍后再试")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 50)
+            }
         }
     }
 
@@ -204,8 +188,10 @@ struct UnlockView: View {
         VStack(spacing: 16) {
             PatternLockView(onComplete: { pattern in
                 if vault.unlockWithPattern(pattern) {
+                    vault.clearFails()
                     errorMsg = nil
                 } else {
+                    vault.registerFail()
                     errorMsg = "图案错误"
                 }
             })

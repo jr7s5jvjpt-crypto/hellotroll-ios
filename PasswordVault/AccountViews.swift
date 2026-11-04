@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 账号列表：按类型分组展示，支持搜索、添加、点击进详情
 struct AccountListView: View {
@@ -6,6 +7,8 @@ struct AccountListView: View {
     @State private var showAdd = false
     @State private var searchText = ""
     @State private var editItem: AccountItem?
+    @State private var isEditing = false
+    @State private var selection: Set<UUID> = []
 
     private var groups: [(String, [AccountItem])] {
         let filtered = searchText.isEmpty
@@ -25,7 +28,7 @@ struct AccountListView: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            List(selection: $selection) {
                 if groups.isEmpty {
                     Text("还没有账号，点右上角 + 添加")
                         .foregroundColor(.secondary)
@@ -41,6 +44,11 @@ struct AccountListView: View {
                                         Text(item.account)
                                             .font(.subheadline)
                                             .foregroundColor(.secondary)
+                                        if vault.showPasswordInList && !item.password.isEmpty {
+                                            Text(String(repeating: "•", count: item.password.count))
+                                                .font(.caption)
+                                                .foregroundColor(.tertiary)
+                                        }
                                     }
                                 }
                                 .swipeActions(edge: .trailing) {
@@ -72,11 +80,43 @@ struct AccountListView: View {
             .animation(.easeInOut(duration: 0.25), value: vault.items)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        showAdd = true
-                    } label: {
-                        Image(systemName: "plus")
+                    HStack {
+                        Button(isEditing ? "完成" : "管理") {
+                            withAnimation {
+                                isEditing.toggle()
+                                if !isEditing { selection = [] }
+                            }
+                        }
+                        Button {
+                            showAdd = true
+                        } label: {
+                            Image(systemName: "plus")
+                        }
                     }
+                }
+            }
+            .environment(\.editMode, isEditing ? .constant(.active) : .constant(.inactive))
+            .safeAreaInset(edge: .bottom) {
+                if isEditing && !selection.isEmpty {
+                    Button {
+                        let ids = selection
+                        for id in ids {
+                            if let it = vault.items.first(where: { $0.id == id }) {
+                                vault.delete(it)
+                            }
+                        }
+                        selection = []
+                    } label: {
+                        Text("删除所选（\(selection.count)）")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.red)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                    }
+                    .padding()
+                    .background(Color(.systemBackground))
                 }
             }
             .sheet(isPresented: $showAdd) {
@@ -106,10 +146,27 @@ struct AccountDetailView: View {
             Section("标题") {
                 Text(item.title.isEmpty ? "未命名" : item.title)
             }
+            Section("最后更新") {
+                HStack {
+                    Text(lastUpdatedText)
+                    if daysSinceUpdate > 90 {
+                        Spacer()
+                        Text("建议更换密码").font(.caption).foregroundColor(.orange)
+                    }
+                }
+            }
             Section("账号") {
                 HStack {
                     Text(item.account)
                     Spacer()
+                    if item.type == .website, let url = URL(string: item.account), url.scheme != nil {
+                        Button {
+                            UIApplication.shared.open(url)
+                        } label: {
+                            Image(systemName: "safari")
+                        }
+                        .padding(.trailing, 14)
+                    }
                     copyButton(field: "账号", value: item.account)
                 }
             }
@@ -148,6 +205,17 @@ struct AccountDetailView: View {
         .sheet(isPresented: $showEdit, onDismiss: refreshItem) {
             AccountEditView(item: item, isNew: false)
         }
+    }
+
+    private var daysSinceUpdate: Int {
+        Int(Date().timeIntervalSince(item.updatedAt) / 86400)
+    }
+
+    private var lastUpdatedText: String {
+        let d = daysSinceUpdate
+        if d <= 0 { return "今天" }
+        if d < 365 { return "\(d) 天前" }
+        return "\(d / 365) 年前"
     }
 
     /// 复制按钮：点击后图标短暂变绿打勾并显示“已复制”，1.5 秒后恢复
@@ -192,6 +260,7 @@ struct AccountEditView: View {
     @Environment(\.dismiss) var dismiss
     @State var item: AccountItem
     var isNew: Bool
+    @State private var showWeakAlert = false
 
     var body: some View {
         NavigationStack {
@@ -216,16 +285,31 @@ struct AccountEditView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") {
-                        if isNew {
-                            vault.add(item)
+                        if vault.isWeakPassword(item.password) {
+                            showWeakAlert = true
                         } else {
-                            vault.update(item)
+                            save()
                         }
-                        dismiss()
                     }
                     .disabled(item.title.isEmpty && item.account.isEmpty)
                 }
             }
         }
+        .alert("密码较弱", isPresented: $showWeakAlert) {
+            Button("仍然保存") { save() }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("这个密码过短或过于简单，建议用密码生成器生成更强密码。")
+        }
+    }
+
+    private func save() {
+        item.updatedAt = Date()
+        if isNew {
+            vault.add(item)
+        } else {
+            vault.update(item)
+        }
+        dismiss()
     }
 }

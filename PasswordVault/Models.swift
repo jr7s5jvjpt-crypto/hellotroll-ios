@@ -22,6 +22,8 @@ struct AccountItem: Identifiable, Codable, Equatable {
     var account: String = ""
     var password: String = ""
     var note: String = ""
+    /// 最后修改时间，用于密码有效期提醒
+    var updatedAt = Date()
 }
 
 /// 账号的显示类型名：自定义类型显示自定义名称，否则显示内置类型

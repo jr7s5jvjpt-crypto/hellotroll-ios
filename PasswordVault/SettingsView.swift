@@ -6,12 +6,21 @@ struct SettingsView: View {
     @EnvironmentObject var vault: VaultStore
     @State private var showChangePassword = false
     @State private var showPatternSetup = false
-    @State private var showBiometricSetup = false
     @State private var showImporter = false
+    @AppStorage("autoClearClipboard") private var autoClearClipboard = true
+    @AppStorage("showPasswordInList") private var showPasswordInList = false
     @State private var showPatternInvalidAlert = false
     @State private var backupResult: BackupResult?
 
     enum BackupResult { case imported, importFailed }
+
+    private var lastBackupText: String {
+        guard let d = vault.lastBackupDate else { return "从未" }
+        let days = Int(Date().timeIntervalSince(d) / 86400)
+        if days <= 0 { return "今天" }
+        if days < 365 { return "\(days) 天前" }
+        return "\(days / 365) 年前"
+    }
 
     var body: some View {
         NavigationStack {
@@ -40,19 +49,20 @@ struct SettingsView: View {
                             Label("开启九宫格解锁", systemImage: "circle.grid.cross.fill")
                         }
                     }
-                    if vault.isBiometricEnabled {
-                        Button(role: .destructive) {
-                            vault.disableBiometric()
-                        } label: {
-                            Label("关闭面容识别", systemImage: "faceid")
-                        }
-                    } else {
-                        Button {
-                            showBiometricSetup = true
-                        } label: {
-                            Label("开启面容识别", systemImage: "faceid")
-                        }
+                    Picker("自动锁定", selection: Binding(
+                        get: { vault.autoLockInterval },
+                        set: { vault.autoLockInterval = $0 }
+                    )) {
+                        Text("立即锁定").tag(0.0)
+                        Text("30 秒").tag(30.0)
+                        Text("1 分钟").tag(60.0)
+                        Text("5 分钟").tag(300.0)
+                        Text("10 分钟").tag(600.0)
                     }
+                    Toggle("复制后自动清除剪贴板", isOn: $autoClearClipboard)
+                    Toggle("账号列表显示密码", isOn: $showPasswordInList)
+                } footer: {
+                    Text("切后台后超过该时间需重新输入密码；完全退出软件后始终需要密码。")
                 }
                 Section("备份与还原") {
                     if let url = vault.exportBackupFileURL() {
@@ -73,6 +83,11 @@ struct SettingsView: View {
                         Text("1.2").foregroundColor(.secondary)
                     }
                     HStack {
+                        Label("上次备份", systemImage: "arrow.clockwise")
+                        Spacer()
+                        Text(lastBackupText).foregroundColor(.secondary)
+                    }
+                    HStack {
                         Label("数据存储", systemImage: "lock.shield")
                         Spacer()
                         Text("本地加密").foregroundColor(.secondary)
@@ -90,9 +105,6 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showPatternSetup) {
                 PatternSetupView()
-            }
-            .sheet(isPresented: $showBiometricSetup) {
-                BiometricSetupView()
             }
             .fileImporter(
                 isPresented: $showImporter,
@@ -128,54 +140,6 @@ struct SettingsView: View {
                 Text(backupResult == .imported
                      ? "数据已还原，请用对应的主密码重新解锁。"
                      : "无法导入，请确认是有效的备份文件。")
-            }
-        }
-    }
-}
-
-/// 开启面容识别：输入主密码验证后启用
-struct BiometricSetupView: View {
-    @EnvironmentObject var vault: VaultStore
-    @Environment(\.dismiss) var dismiss
-    @State private var password = ""
-    @State private var errorMsg: String?
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    SecureField("输入主密码", text: $password)
-                } footer: {
-                    Text("开启后可用面容识别快速解锁。需先在系统设置中录入面容。")
-                }
-                if let errorMsg {
-                    Text(errorMsg)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                }
-            }
-            .navigationTitle("开启面容识别")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("开启") {
-                        guard vault.verifyMasterPassword(password) else {
-                            errorMsg = "主密码错误"
-                            return
-                        }
-                        // 会先弹出面容扫描验证，通过后再启用
-                        vault.enableBiometric(masterPassword: password) { ok in
-                            if ok {
-                                dismiss()
-                            } else {
-                                errorMsg = "开启失败：面容验证未通过或设备不支持"
-                            }
-                        }
-                    }
-                    .disabled(password.isEmpty)
-                }
             }
         }
     }

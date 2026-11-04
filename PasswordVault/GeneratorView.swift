@@ -23,10 +23,12 @@ struct GeneratorView: View {
                             .foregroundColor(.secondary)
 
                         Text(result.isEmpty ? "点击下方生成" : result)
-                            .font(.title2.monospaced().bold())
+                            .font(.system(size: 24, weight: .bold, design: .monospaced))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.4)
                             .frame(maxWidth: .infinity)
+                            .frame(height: 52)   // 固定高度，密码再长也不撑高卡片
                             .multilineTextAlignment(.center)
-                            .padding(.vertical, 16)
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 if !result.isEmpty {
@@ -43,6 +45,31 @@ struct GeneratorView: View {
                             .font(.caption)
                             .foregroundColor(showCopied ? .green : .secondary)
                             .animation(.easeInOut(duration: 0.2), value: showCopied)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(cardStyle)
+
+                    // 密码强度（进度条 + 颜色变化）
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("密码强度")
+                                .font(.subheadline)
+                            Spacer()
+                            Text(strengthLabel)
+                                .font(.caption).bold()
+                                .foregroundColor(strengthColor)
+                        }
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(Color(.systemGray5))
+                                Capsule()
+                                    .fill(strengthColor)
+                                    .frame(width: geo.size.width * strengthFraction)
+                            }
+                        }
+                        .frame(height: 8)
+                        .animation(.easeInOut(duration: 0.35), value: result)
                     }
                     .padding()
                     .frame(maxWidth: .infinity)
@@ -114,6 +141,32 @@ struct GeneratorView: View {
                 Text(sub).font(.caption).foregroundColor(.secondary)
             }
         }
+    }
+
+    private var strengthFraction: Double {
+        guard !result.isEmpty else { return 0 }
+        let kinds = [upper, lower, digits, symbols].filter { $0 }.count
+        var score = Double(kinds)
+        if length >= 12 { score += 1 }
+        if length >= 16 { score += 1 }
+        if length >= 20 { score += 1 }
+        return min(score / 6.0, 1.0)
+    }
+
+    private var strengthLabel: String {
+        let f = strengthFraction
+        if f >= 0.85 { return "极强" }
+        if f >= 0.6 { return "强" }
+        if f >= 0.35 { return "中" }
+        return "弱"
+    }
+
+    private var strengthColor: Color {
+        let f = strengthFraction
+        if f >= 0.85 { return .green }
+        if f >= 0.6 { return .teal }
+        if f >= 0.35 { return .orange }
+        return .red
     }
 
     private func generate() -> String {
