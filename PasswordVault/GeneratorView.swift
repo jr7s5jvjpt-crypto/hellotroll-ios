@@ -11,6 +11,7 @@ struct GeneratorView: View {
     @State private var excludeAmbiguous = false
     @State private var result = ""
     @State private var showCopied = false
+    @State private var showSaveSheet = false
 
     var body: some View {
         NavigationStack {
@@ -105,7 +106,7 @@ struct GeneratorView: View {
                     .frame(maxWidth: .infinity)
                     .background(cardStyle)
 
-                    // 生成 / 复制
+                    // 生成 / 复制 / 存入
                     VStack(spacing: 10) {
                         BigActionButton(title: "生成", icon: "wand.and.stars", color: .blue) {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -117,6 +118,9 @@ struct GeneratorView: View {
                             vault.copyText(result)
                             showCopied = true
                         }
+                        BigActionButton(title: "存入保险箱", icon: "square.and.arrow.down", color: .orange, disabled: result.isEmpty) {
+                            showSaveSheet = true
+                        }
                     }
                 }
                 .padding(.horizontal, 12)
@@ -125,6 +129,12 @@ struct GeneratorView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("密码生成器")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showSaveSheet) {
+                AccountEditView(
+                    item: AccountItem(password: result),
+                    isNew: true
+                )
+            }
         }
     }
 

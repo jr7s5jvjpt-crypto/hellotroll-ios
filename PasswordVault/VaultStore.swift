@@ -329,6 +329,31 @@ final class VaultStore: ObservableObject {
         }
     }
 
+    /// 导出 CSV 表格：明文，可用于 Excel 或其他密码管理器导入
+    func exportCSVFileURL() -> URL? {
+        var lines = ["类型,标题,账号,密码,备注"]
+        for item in items {
+            let type = typeDisplayName(for: item)
+            let row = [type, item.title, item.account, item.password, item.note]
+                .map { csvEscape($0) }
+                .joined(separator: ",")
+            lines.append(row)
+        }
+        let csv = lines.joined(separator: "\n")
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PasswordVault-\(Int(Date().timeIntervalSince1970)).csv")
+        try? csv.data(using: .utf8)?.write(to: url)
+        return url
+    }
+
+    /// CSV 字段转义：包含逗号、引号、换行时用双引号包裹
+    private func csvEscape(_ field: String) -> String {
+        if field.contains(",") || field.contains("\"") || field.contains("\n") {
+            return "\"" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+        }
+        return field
+    }
+
     private func save() throws {
         guard let key = key else { return }
         let data = try JSONEncoder().encode(items)

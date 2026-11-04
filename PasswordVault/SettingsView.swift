@@ -70,7 +70,12 @@ struct SettingsView: View {
                 Section("备份与还原") {
                     if let url = vault.exportBackupFileURL() {
                         ShareLink(item: url, preview: SharePreview("密码保险箱备份")) {
-                            Label("导出备份", systemImage: "square.and.arrow.up")
+                            Label("导出加密备份", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                    if let csvURL = vault.exportCSVFileURL() {
+                        ShareLink(item: csvURL, preview: SharePreview("账号数据 CSV")) {
+                            Label("导出 CSV 表格", systemImage: "tablecells")
                         }
                     }
                     Button {
