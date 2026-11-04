@@ -17,11 +17,14 @@ struct RootView: View {
                     ))
             } else {
                 MainTabView()
-                    .transition(.opacity)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                        removal: .opacity
+                    ))
             }
         }
         .animation(.easeInOut(duration: 0.35), value: vault.hasMasterPassword)
-        .animation(.easeInOut(duration: 0.35), value: vault.isUnlocked)
+        .animation(.spring(response: 0.45, dampingFraction: 0.82), value: vault.isUnlocked)
     }
 }
 
@@ -79,6 +82,8 @@ struct UnlockView: View {
     @State private var mode: UnlockMode = .password
     @State private var errorMsg: String?
     @State private var shake = false
+    @State private var isUnlocking = false
+    @State private var unlockSucceeded = false
 
     enum UnlockMode { case password, pattern }
 
@@ -149,26 +154,49 @@ struct UnlockView: View {
                 .offset(x: shake ? -8 : 0)
                 .animation(.easeInOut(duration: 0.08).repeatCount(shake ? 3 : 0), value: shake)
             Button {
-                if vault.unlock(with: password) {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        password = ""
-                        errorMsg = nil
+                guard !isUnlocking else { return }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                    isUnlocking = true
+                }
+                // 给按压动画一点时间，再验证密码
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    if vault.verifyMasterPassword(password) {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                            unlockSucceeded = true
+                        }
+                        // 打勾反馈后，真正解锁进入主界面
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            _ = vault.unlock(with: password)
+                        }
+                    } else {
+                        errorMsg = "主密码错误"
+                        shake = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                            isUnlocking = false
+                            shake = false
+                        }
                     }
-                } else {
-                    errorMsg = "主密码错误"
-                    shake = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { shake = false }
                 }
             } label: {
-                Text("解锁")
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(password.isEmpty ? Color.gray : Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
+                HStack(spacing: 8) {
+                    if unlockSucceeded {
+                        Image(systemName: "checkmark.circle.fill")
+                    } else if isUnlocking {
+                        ProgressView()
+                    }
+                    Text(unlockSucceeded ? "已解锁" : (isUnlocking ? "解锁中…" : "解锁"))
+                        .font(.headline)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(unlockSucceeded ? Color.green : (password.isEmpty ? Color.gray : Color.blue))
+                .foregroundColor(.white)
+                .cornerRadius(12)
+                .scaleEffect(isUnlocking ? 0.94 : 1.0)
             }
-            .disabled(password.isEmpty)
+            .disabled(password.isEmpty || isUnlocking)
             .padding(.horizontal, 50)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isUnlocking)
         }
     }
 

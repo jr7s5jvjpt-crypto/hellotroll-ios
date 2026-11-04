@@ -5,6 +5,7 @@ struct AccountListView: View {
     @EnvironmentObject var vault: VaultStore
     @State private var showAdd = false
     @State private var searchText = ""
+    @State private var editItem: AccountItem?
 
     private var groups: [(String, [AccountItem])] {
         let filtered = searchText.isEmpty
@@ -42,6 +43,25 @@ struct AccountListView: View {
                                             .foregroundColor(.secondary)
                                     }
                                 }
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) {
+                                        vault.delete(item)
+                                    } label: {
+                                        Label("删除", systemImage: "trash")
+                                    }
+                                }
+                                .swipeActions(edge: .leading) {
+                                    Button {
+                                        editItem = item
+                                    } label: {
+                                        Label("修改", systemImage: "square.and.pencil")
+                                    }
+                                    Button {
+                                        vault.copyText(item.account)
+                                    } label: {
+                                        Label("复制账号", systemImage: "doc.on.doc")
+                                    }
+                                }
                             }
                         }
                     }
@@ -62,6 +82,9 @@ struct AccountListView: View {
             .sheet(isPresented: $showAdd) {
                 AccountEditView(item: AccountItem(), isNew: true)
             }
+            .sheet(item: $editItem) { item in
+                AccountEditView(item: item, isNew: false)
+            }
         }
     }
 }
@@ -73,6 +96,7 @@ struct AccountDetailView: View {
     @State private var showEdit = false
     @State private var revealPassword = false
     @State private var copiedField: String?
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         Form {
@@ -111,6 +135,7 @@ struct AccountDetailView: View {
             Section {
                 Button("删除", role: .destructive) {
                     vault.delete(item)
+                    dismiss()
                 }
             }
         }
