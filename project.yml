@@ -1,0 +1,28 @@
+# XcodeGen 配置文件：用这个 YAML 在云端自动生成 Xcode 工程，
+# 避免手写容易出错的 .xcodeproj 文件。
+name: PasswordVault
+options:
+  bundleIdPrefix: com.pwvault
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+targets:
+  PasswordVault:
+    type: application
+    platform: iOS
+    sources:
+      - path: PasswordVault
+        excludes:
+          - "Info.plist"
+    info:
+      path: PasswordVault/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pwvault.app
+        PRODUCT_NAME: PasswordVault
+        SWIFT_VERSION: "5.0"
+        SWIFT_STRICT_CONCURRENCY: minimal
+        CODE_SIGNING_ALLOWED: "NO"
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: "NO"

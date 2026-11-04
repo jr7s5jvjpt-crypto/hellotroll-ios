@@ -1,0 +1,42 @@
+name: Build IPA
+
+# 触发方式：每次 push 代码到 main 分支，或手动触发
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 XcodeGen
+        run: brew install xcodegen
+
+      - name: 生成 Xcode 工程
+        run: xcodegen generate
+
+      - name: 编译（不签名，供巨魔安装）
+        run: |
+          xcodebuild -project PasswordVault.xcodeproj \
+            -scheme PasswordVault \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: 打包成 ipa
+        run: |
+          mkdir -p Payload
+          cp -R "build/Build/Products/Release-iphoneos/PasswordVault.app" Payload/
+          zip -r PasswordVault.ipa Payload
+
+      - name: 上传 ipa 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: PasswordVault-ipa
+          path: PasswordVault.ipa
