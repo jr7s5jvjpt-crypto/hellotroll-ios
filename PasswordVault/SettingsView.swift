@@ -25,7 +25,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("安全") {
+                Section {
                     Button {
                         showChangePassword = true
                     } label: {
@@ -61,6 +61,8 @@ struct SettingsView: View {
                     }
                     Toggle("复制后自动清除剪贴板", isOn: $autoClearClipboard)
                     Toggle("账号列表显示密码", isOn: $showPasswordInList)
+                } header: {
+                    Text("安全")
                 } footer: {
                     Text("切后台后超过该时间需重新输入密码；完全退出软件后始终需要密码。")
                 }
