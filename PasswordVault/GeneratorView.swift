@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 密码生成器：紧凑但不挤，一屏可见
+/// 密码生成器：按用途和规则生成密码（紧凑布局，一屏可见全部按钮）
 struct GeneratorView: View {
     @EnvironmentObject var vault: VaultStore
     @State private var length: Double = 16
@@ -14,106 +14,114 @@ struct GeneratorView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 12) {
-                // 密码结果
-                VStack(spacing: 8) {
-                    Text(result.isEmpty ? "点击下方生成" : result)
-                        .font(.system(size: 22, weight: .bold, design: .monospaced))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.35)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .multilineTextAlignment(.center)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            if !result.isEmpty {
-                                vault.copyText(result)
-                                showCopied = true
-                            }
-                        }
-                        .id(result)
-                    if showCopied {
-                        Text("已复制")
-                            .font(.caption2)
-                            .foregroundColor(.green)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-                .frame(maxWidth: .infinity)
-                .background(cardStyle)
+            ScrollView {
+                VStack(spacing: 12) {
+                    // 生成结果卡片
+                    VStack(spacing: 10) {
+                        Text("按用途和规则生成密码。")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
 
-                // 密码强度
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("密码强度").font(.subheadline)
-                        Spacer()
-                        if !result.isEmpty {
-                            Text(strengthDetail)
-                                .font(.caption2).bold()
+                        Text(result.isEmpty ? "点击下方生成" : result)
+                            .font(.system(size: 22, weight: .bold, design: .monospaced))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.35)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .multilineTextAlignment(.center)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                if !result.isEmpty {
+                                    vault.copyText(result)
+                                    showCopied = true
+                                }
+                            }
+                            .id(result)
+                            .transition(.scale.combined(with: .opacity))
+
+                        Text(showCopied ? "已复制到剪贴板" : "未复制到剪贴板")
+                            .font(.caption)
+                            .foregroundColor(showCopied ? .green : .secondary)
+                            .animation(.easeInOut(duration: 0.2), value: showCopied)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .frame(maxWidth: .infinity)
+                    .background(cardStyle)
+
+                    // 密码强度（进度条 + 颜色变化）
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("密码强度").font(.subheadline)
+                            Spacer()
+                            Text(strengthLabel)
+                                .font(.caption).bold()
                                 .foregroundColor(strengthColor)
                         }
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(Color(.systemGray5))
+                                Capsule()
+                                    .fill(strengthColor)
+                                    .frame(width: geo.size.width * strengthFraction)
+                            }
+                        }
+                        .frame(height: 6)
+                        .animation(.easeInOut(duration: 0.35), value: result)
                     }
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color(.systemGray5))
-                            Capsule()
-                                .fill(strengthColor)
-                                .frame(width: geo.size.width * strengthFraction)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .background(cardStyle)
+
+                    // 长度
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("长度")
+                            Spacer()
+                            Text("\(Int(length))").foregroundColor(.secondary)
+                        }
+                        Slider(value: $length, in: 4...32, step: 1)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .background(cardStyle)
+
+                    // 字符规则
+                    VStack(alignment: .leading, spacing: 8) {
+                        toggleRow("大写 A-Z", "加入大写，提升组合强度", $upper)
+                        Divider()
+                        toggleRow("小写 a-z", "加入小写，扩大可用范围", $lower)
+                        Divider()
+                        toggleRow("数字 0-9", "加入数字", $digits)
+                        Divider()
+                        toggleRow("符号", "加入！@# 等特殊符号", $symbols)
+                        Divider()
+                        toggleRow("排除混淆", "排除 0/O、1/I/l 等易混淆字符", $excludeAmbiguous)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .background(cardStyle)
+
+                    // 生成 / 复制
+                    VStack(spacing: 10) {
+                        BigActionButton(title: "生成", icon: "wand.and.stars", color: .blue) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                result = generate()
+                            }
+                            showCopied = false
+                        }
+                        BigActionButton(title: "复制", icon: "doc.on.doc", color: .green, disabled: result.isEmpty) {
+                            vault.copyText(result)
+                            showCopied = true
                         }
                     }
-                    .frame(height: 6)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity)
-                .background(cardStyle)
-
-                // 长度
-                VStack(spacing: 6) {
-                    HStack {
-                        Text("长度").font(.subheadline)
-                        Spacer()
-                        Text("\(Int(length))").foregroundColor(.secondary)
-                    }
-                    Slider(value: $length, in: 4...32, step: 1)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity)
-                .background(cardStyle)
-
-                // 字符规则
-                VStack(spacing: 0) {
-                    toggleRow("大写 A-Z", $upper)
-                    Divider().padding(.vertical, 4)
-                    toggleRow("小写 a-z", $lower)
-                    Divider().padding(.vertical, 4)
-                    toggleRow("数字 0-9", $digits)
-                    Divider().padding(.vertical, 4)
-                    toggleRow("符号 !@#", $symbols)
-                    Divider().padding(.vertical, 4)
-                    toggleRow("排除易混淆 0O1Il", $excludeAmbiguous)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity)
-                .background(cardStyle)
-
-                // 按钮
-                HStack(spacing: 12) {
-                    BigActionButton(title: "生成", icon: "wand.and.stars", color: .blue) {
-                        result = generate()
-                        showCopied = false
-                    }
-                    BigActionButton(title: "复制", icon: "doc.on.doc", color: .green, disabled: result.isEmpty) {
-                        vault.copyText(result)
-                        showCopied = true
-                    }
-                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
             .background(Color(.systemGroupedBackground))
             .navigationTitle("密码生成器")
             .navigationBarTitleDisplayMode(.inline)
@@ -121,14 +129,17 @@ struct GeneratorView: View {
     }
 
     private var cardStyle: some View {
-        RoundedRectangle(cornerRadius: 14)
+        RoundedRectangle(cornerRadius: 16)
             .fill(Color(.systemBackground))
-            .shadow(color: .black.opacity(0.05), radius: 3, x: 0, y: 1)
+            .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 1)
     }
 
-    private func toggleRow(_ title: String, _ binding: Binding<Bool>) -> some View {
+    private func toggleRow(_ title: String, _ sub: String, _ binding: Binding<Bool>) -> some View {
         Toggle(isOn: binding) {
-            Text(title).font(.subheadline)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(sub).font(.caption).foregroundColor(.secondary)
+            }
         }
     }
 
@@ -159,12 +170,12 @@ struct GeneratorView: View {
         min(entropyBits / 100.0, 1.0)
     }
 
-    private var strengthDetail: String {
+    private var strengthLabel: String {
         let bits = entropyBits
-        if bits >= 80 { return "极强 · \(Int(bits)) bits" }
-        if bits >= 60 { return "强 · \(Int(bits)) bits" }
-        if bits >= 40 { return "中 · \(Int(bits)) bits" }
-        return "弱 · \(Int(bits)) bits"
+        if bits >= 80 { return "极强" }
+        if bits >= 60 { return "强" }
+        if bits >= 40 { return "中" }
+        return "弱"
     }
 
     private var strengthColor: Color {
@@ -193,6 +204,7 @@ struct GeneratorView: View {
     }
 }
 
+/// 带按压缩放反馈的大按钮（生成 / 复制）
 struct BigActionButton: View {
     let title: String
     let icon: String
@@ -215,15 +227,16 @@ struct BigActionButton: View {
             }
         }) {
             Label(title, systemImage: icon)
-                .font(.subheadline.bold())
+                .font(.headline)
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
+                .padding(.vertical, 12)
                 .background(
-                    RoundedRectangle(cornerRadius: 12).fill(disabled ? Color.gray : color)
+                    RoundedRectangle(cornerRadius: 14).fill(disabled ? Color.gray : color)
                 )
-                .scaleEffect(pressed ? 0.97 : 1)
+                .scaleEffect(pressed ? 0.96 : 1)
                 .opacity(disabled ? 0.45 : (pressed ? 0.85 : 1))
+                .animation(.spring(response: 0.2, dampingFraction: 0.5), value: pressed)
         }
         .buttonStyle(.plain)
     }
