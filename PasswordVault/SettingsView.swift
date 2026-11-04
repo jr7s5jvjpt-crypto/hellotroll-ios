@@ -57,7 +57,7 @@ struct SettingsView: View {
                         Text("5 分钟").tag(300.0)
                         Text("10 分钟").tag(600.0)
                     }
-                    .onChange(of: autoLockSelection) { _, newValue in
+                    .onChange(of: autoLockSelection) { newValue in
                         vault.autoLockInterval = newValue
                     }
                     Toggle("复制后自动清除剪贴板", isOn: $autoClearClipboard)
